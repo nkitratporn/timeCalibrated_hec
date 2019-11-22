@@ -4,11 +4,11 @@ Negative human- wild elephant interaction, especially in the form of crop depred
 This project is divided into 3 parts
 1. data preparation
   + random-sampling of occurrence dataset
-  + raster pre-process (partially post-GEE)
+  + raster pre-process (partially after-GEE)
 2. modeling
   + extract predictors value across multiple seasons
   + evaluate occurence data: wilcox-test, multicollinearity
-  + parameter optimization and maxent modeling
+  + parameter optimization (EMNeval) and MaxEnt (dismo) modeling
 3. analysis
   + conflict classification and hotspot
   + trend
