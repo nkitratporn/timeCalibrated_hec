@@ -16,9 +16,11 @@ library('rasterVis')
 library('RColorBrewer')
 
 library('tidyr')
+library(dplyr)
 library(stringr)
 ################## SET WORKING DIR ###################
 setwd('D:/Academic/Research/0_maximus-materials/analysis/')
+
 
 ################## Read in EVI and LC ###################
 studyArea <- readOGR('data/sdm_data/studyarea/studyArea_TH.shp')
@@ -170,7 +172,74 @@ evi.sd.class <- ggplot(evi.df_from2014[evi.df_from2014$var=='evi_sd',],
 library(gridExtra)
 grid.arrange(evi.slope.class,evi.sd.class,evi.class, ncol=3)
 
+############################################################
+################## area by LC time-seires ###################
 
+#--- load raster for land cover
+lc <- stack('data/sdm_data/data_prep/season_by_year/lcStack.tif')
+names(lc) <- c('lc2009','lc2010','lc2011','lc2012','lc2013','lc2014','lc2015','lc2016','lc2017','lc2018')
+lc <- mask(lc,r.studyArea)
+#--- load polygon of provinces within study area
+province <- readOGR('data/sdm_data/studyarea/studyArea_provinces.shp')
 
-library(dplyr)
-library(stringr)
+#--- calc frequency of each factor/class for each raster one-by-one
+lc.area <- data.frame()
+lc.area <- freq(lc,merge=T)
+lc.area$prov <- c('All')
+for (i in seq_along(province)) {
+  scenario.prov <- mask(lc,province[i,]) # raster by province
+  lc.prov <- freq(scenario.prov,merge=T) # get freqency of class
+  lc.prov$prov <- province@data[i,5] # add name of province
+  lc.area <- rbind(lc.area,lc.prov) # add to data.frame
+}
+lc.area <- na.omit(lc.area,cols=1)
+lc.area.melt <- melt(lc.area,id=c('prov','value')) # melt to basic data by key
+lc.area.melt <- as.data.frame(unclass(lc.area.melt))
+colnames(lc.area.melt) <- c('province','class','year','count')
+
+#--- extract season, scenario, year from raster name as saved in type
+lc.area.melt$area <- lc.area.melt$count*0.5*0.5
+lc.area.melt$year <- substring(lc.area.melt$year,3)
+lc.area.melt$year <- as.factor(lc.area.melt$year)
+
+#--- save
+write.csv(lc.area.melt,'data/sdm_output/occ-timeDependent/prediction/25-results/lc_area_all.csv',row.names = F,col.names = T)
+
+## create graphs to visulize area #####
+lc.area <- read.csv('data/sdm_output/occ-timeDependent/prediction/25-results/lc_area_all.csv')
+lc.area.overall <- lc.area[(lc.area$province=='All'),];
+
+class.labs <- c("Forest", "Shrub", "Woody savannas",'Savannas','Grasslands','Croplands','Built-up')
+names(class.labs) <- c("1", "2", "3", "4",'5','6','7')
+
+lc.area.barAll <- ggplot(lc.area.overall[lc.area.overall$class > 0 & lc.area.overall$class <=7 ,],
+                         aes(y=area,x=factor(year), fill = factor(class,levels=c(1,2,3,4,5,6,7)))) +
+  geom_bar(position='stack',stat='identity') +
+  scale_fill_brewer(palette='Dark2',labels = c("Forest", "Shrub", "Woody savannas",'Savannas','Grasslands','Croplands','Built-up'))+
+  theme_bw() +
+  theme(axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1),
+        legend.position = 'bottom', legend.direction = "horizontal",
+        legend.title = element_blank(), legend.text = element_text(size = 15), strip.text = element_text(size=16),
+        axis.text = element_text(size=14),axis.title = element_text(size=15)) +
+  theme(panel.grid.major.y = element_line(color = "grey80"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank())+
+  labs(y=bquote('Area'~(km^2)))
+
+lc.area.line <- ggplot(lc.area.overall[lc.area.overall$class > 0 & lc.area.overall$class <=7 ,],
+                       aes(y=area,x=factor(year), group = factor(class,levels=c(1,2,3,4,5,6,7)))) +
+  geom_line(aes(color=factor(class)),size=1.5) +
+  geom_point(size=1.5) +
+  scale_color_brewer(palette='Dark2',labels = c("Forest", "Shrub", "Woody savannas",'Savannas','Grasslands','Croplands','Built-up'))+
+  theme_bw() +
+  theme(axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1),
+        legend.position = 'bottom', legend.direction = "horizontal",
+        legend.title = element_blank(), legend.text = element_text(size = 14), strip.text = element_text(size=16),
+        axis.text = element_text(size=12),axis.title = element_text(size=14)) +
+  theme(strip.background =element_rect(fill='#EDEDED', color='#EDEDED'),
+        #panel.grid.major = element_line(color = "#EDEDED"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank())+
+  guides(colour = guide_legend(reverse=T))+
+  labs(y=bquote('Area'~(km^2)))
+
